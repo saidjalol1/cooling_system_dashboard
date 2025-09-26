@@ -14,13 +14,14 @@ from config.database import get_db
 from auth import auth_main, token
 from shemas.models import User
 
-from api import user_routes
+from api import user_routes, device_routes
 
 app  = FastAPI()
 
 
 # routes
 app.include_router(user_routes.users)
+app.include_router(device_routes.device)
 
 
 # midlware and cors conf
