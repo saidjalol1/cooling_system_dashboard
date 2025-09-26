@@ -66,4 +66,5 @@ dmypy.json
 docker-compose.override.yml
 
 # Alembic
+alemibc
 alembic
