@@ -4,6 +4,7 @@ from datetime import timedelta
 
 from fastapi import FastAPI, Request, Depends, status, HTTPException
 
+from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -12,7 +13,8 @@ from sqlalchemy.orm import Session
 
 from config.database import get_db
 from auth import auth_main, token
-from shemas.models import User
+from shemas.models import User, Device, Heat, Vibration, Humidity
+from shemas import schemas
 
 from api import user_routes, device_routes
 
@@ -50,8 +52,27 @@ templates = Jinja2Templates(directory="templates")
 
 # Endpoints
 @app.get("/")
-async def dashboard(request: Request, user : User = Depends(auth_main.get_current_user)):
+async def dashboard(request: Request,db : Session = Depends(get_db)):
     return templates.TemplateResponse("dashboard.html", {"request": request})
+
+
+@app.get("/detail/{id}/page")
+async def detail(id: int,request: Request,db : Session = Depends(get_db)):
+    data = db.query(Device).filter(Device.id == id).first()
+    
+    humidity = db.query(Humidity).filter(Humidity.device_id == data.device_name).all()
+    vibaration = db.query(Vibration).filter(Vibration.device_id == data.device_name).all()
+    temperature = db.query(Heat).filter(Heat.device_id == data.device_name).all()
+
+    device = jsonable_encoder(data)
+
+    device["temperature"] = jsonable_encoder(temperature)
+    device["vibration"] = jsonable_encoder(vibaration)
+    device["humidity"] = jsonable_encoder(humidity)
+    return templates.TemplateResponse(
+        "motor-detail.html",
+        {"request": request, "context": device}
+    )
 
 
 @app.post("/token")

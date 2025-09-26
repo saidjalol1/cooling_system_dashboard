@@ -24,12 +24,17 @@ class DeviceBase(BaseModel):
 
 class VibrationBase(BaseModel):
     vibration: float
-    device_id: int
+    device_id: str
 
 
 class HeatBase(BaseModel):
     heat: float
-    device_id: int
+    device_id: str
+
+
+class HumidityBase(BaseModel):
+    humidity: float
+    device_id: str
 
 
 class Vibration(VibrationBase):
@@ -42,8 +47,18 @@ class Heat(HeatBase):
     date_created: datetime
 
 
-class Device(BaseModel):
+class Humidity(HumidityBase):
     id: int
-    heat: List[Heat] = Field(default_factory=list)
-    vibration: List[Vibration] = Field(default_factory=list)
+    date_created: datetime
+
+
+class Device(BaseModel):
+    device_name: str
+    device_zone: str
+    temperature:  Optional[List[Heat]] = Field(default_factory=list)
+    vibration: Optional[List[Vibration]] = Field(default_factory=list)
+    humidity: Optional[List[Humidity]] = Field(default_factory=list)
+
+    class Config:
+        from_attributes = True
 

@@ -14,17 +14,19 @@ class User(Base):
 
 class Device(Base):
     __tablename__ = "devices"
-    id = Column(Integer, primary_key=True, index=True)
 
-    device_name = Column(String)
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+
+    device_name = Column(String, unique=True, index=True, nullable=False)
     device_zone = Column(String)
 
     date_created = Column(DateTime, default=current_time)
 
-
     temperature = relationship("Heat", back_populates="device")
     vibration = relationship("Vibration", back_populates="device")
-    
+    humidity = relationship("Humidity", back_populates="device")
+
+
 
 class Heat(Base):
     __tablename__ = "heat"
@@ -32,7 +34,7 @@ class Heat(Base):
     id = Column(Integer, primary_key=True, index=True)
 
     heat = Column(Float)
-    device_id = Column(Integer, ForeignKey("devices.id"), nullable=False)
+    device_id = Column(String, ForeignKey("devices.device_name"), nullable=False)
     date_created = Column(DateTime, default=current_time)
 
      
@@ -46,10 +48,22 @@ class Vibration(Base):
     id = Column(Integer, primary_key=True, index=True)
 
     vibration = Column(Float)
-    device_id = Column(Integer, ForeignKey("devices.id"), nullable=False)
+    device_id = Column(String, ForeignKey("devices.device_name"), nullable=False)
     date_created = Column(DateTime, default=current_time)
 
 
     device = relationship("Device", back_populates="vibration")
 
+
+class Humidity(Base):
+    __tablename__ = "humidity"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    humidity = Column(Float)
+    device_id = Column(String, ForeignKey("devices.device_name"), nullable=False)
+    date_created = Column(DateTime, default=current_time)
+
+
+    device = relationship("Device", back_populates="humidity")
 
