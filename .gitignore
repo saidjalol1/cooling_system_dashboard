@@ -1,0 +1,69 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+.eggs/
+dist/
+build/
+*.manifest
+*.spec
+
+# Virtual environment
+venv/
+env/
+.venv/
+.env/
+
+# FastAPI specific
+*.db
+*.sqlite3
+*.log
+
+# Environment variables
+.env
+.env.*
+
+# IDE & Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Tests / Coverage
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+.pytest_cache/
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+*.hypothesis/
+
+# Mypy / Type checkers
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pydantic cache
+*.pydantic.json
+
+# Uvicorn / Gunicorn logs
+*.pid
+*.log
+
+# Docker
+docker-compose.override.yml
+
+# Alembic
+alembic
