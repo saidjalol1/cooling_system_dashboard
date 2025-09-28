@@ -34,14 +34,16 @@ function renderMotors() {
   const pageMotors = motors.slice(start, end);
 
   document.getElementById("motorsContainer").innerHTML = pageMotors.map(m => {
-    const temp = m.temp_value; // use the backend's temp_value
+    const temp = m.temp_value;
     const status = getStatus(temp);
     const percent = Math.min((temp ?? 0) / 120, 1);
     const dasharray = 188;
     const offset = dasharray - dasharray * percent;
 
+    // change div → a
     return `
-      <div class="motor-card dark:bg-gray-800 bg-gray-200 rounded-xl shadow-md p-5 w-80 cursor-pointer">
+      <a href="/detail/${m.id}/page"
+         class="motor-card dark:bg-gray-800 bg-gray-200 rounded-xl shadow-md p-5 w-80 block">
         <div class="flex justify-between items-start">
           <div>
             <h2 class="text-lg font-bold text-black dark:text-white">${m.name}</h2>
@@ -72,7 +74,7 @@ function renderMotors() {
             <span>${m.temp_time}</span>
           </div>
         </div>
-      </div>
+      </a>
     `;
   }).join("");
 }
@@ -97,17 +99,26 @@ function goToPage(page) {
   renderPagination();
 }
 
+
+let lastPayload = "";
+
 document.addEventListener("DOMContentLoaded", () => {
   const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
   const ws = new WebSocket(`${protocol}://${window.location.host}/ws/motors`);
   ws.onopen = () => console.log("WebSocket connected");
+  
+ let renderTimeout;
+
   ws.onmessage = (event) => {
-    console.log("Raw message:", event.data);
-    motors = JSON.parse(event.data);
+  const newMotors = JSON.parse(event.data);
+  motors = newMotors;
+  clearTimeout(renderTimeout);
+  renderTimeout = setTimeout(() => {
     renderCounts();
     renderMotors();
     renderPagination();
-  };
+  }, 500); 
+};
+
   ws.onclose = () => console.log("WebSocket closed");
 });
-

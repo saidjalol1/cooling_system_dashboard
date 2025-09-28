@@ -4,14 +4,26 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Motor Dashboard</title>
-  <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: "class"
+    }
+  if (localStorage.getItem("theme") === "dark") {
+    console.log(localStorage.getItem("theme"))
+    document.documentElement.classList.add('dark');
+  } else {
+    console.log(localStorage.getItem("theme"))
+    document.documentElement.classList.remove('dark');
+  }
+</script>
 </head>
-<body class="min-h-screen bg-gradient-to-br from-slate-800 to-slate-900 p-4">
+<body class="min-h-screen p-4 dark:bg-gray-900 bg-white text-black dark:text-white duration-300">
   <div class="max-w-7xl mx-auto">
     <!-- Header -->
-    <div class="flex items-center justify-between mb-6">
-      <a href='/' class="flex items-center text-slate-300 hover:text-white transition-colors cursor-pointer">
+    <div class="flex items-center justify-between mb-6 ">
+      <a href='/' class="flex items-center text-slate-600 hover:text-gray-400  transition-colors cursor-pointer">
         <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
         </svg>
@@ -31,12 +43,12 @@
     </div>
 
     <!-- Top Row -->
-    <div class="grid lg:grid-cols-2 gap-6 mb-6">
+    <div class="grid lg:grid-cols-2 gap-6 mb-6 ">
       <!-- Current Status -->
-      <div class="bg-slate-700/50 rounded-2xl p-6 border border-slate-600">
+      <div class="dark:bg-slate-700/50 bg-gray-200 rounded-2xl p-6 border dark:border-slate-600">
         <div class="flex justify-between items-start mb-6">
           <div>
-            <h2 class="text-xl text-white font-semibold mb-1">Current Status</h2>
+            <h2 class="text-xl text-black dark:text-white font-semibold mb-1">Current Status</h2>
             <p class="text-slate-400 text-sm">Motor ID: <span id="motorId"></span></p>
           </div>
           <span id="statusBadge" class="bg-red-500 text-white px-3 py-1 rounded-full text-sm font-medium">
@@ -46,29 +58,29 @@
         
         <div class="flex items-center justify-center mb-6">
           <div class="relative w-48 h-48">
-            <svg class="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+            <svg class="w-full h-full transform-rotate-90" viewBox="0 0 100 100">
               <circle cx="50" cy="50" r="40" stroke="currentColor" stroke-width="8" fill="none" class="text-slate-600"/>
               <circle id="heatCircle" cx="50" cy="50" r="40" stroke="currentColor" stroke-width="8" fill="none" 
                       class="text-red-500" stroke-linecap="round"
                       stroke-dasharray="251.2" stroke-dashoffset="50"/>
             </svg>
             <div class="absolute inset-0 flex flex-col items-center justify-center">
-              <span id="currentHeat" class="text-4xl font-bold text-white">{{ context.temperature[-1].heat}}</span>
+              <span id="currentHeat" class="text-4xl font-bold text-black dark:text-white">{{ context.temperature[-1].heat}}</span>
               <span class="text-red-400 text-sm font-medium">Overheated</span>
             </div>
           </div>
         </div>
         
-        <p class="text-slate-400 text-sm text-center">
+        <p class="text-slate-600 text-sm text-center">
           Last updated: <span id="lastUpdated"></span>
         </p>
       </div>
 
       <!-- Temperature Statistics -->
-      <div class="bg-slate-700/50 rounded-2xl p-6 border border-slate-600">
+      <div class="dark:bg-slate-700/50 bg-gray-200 rounded-2xl p-6 border dark:border-slate-600">
         <div class="flex justify-between items-center mb-6">
-          <h2 class="text-xl font-semibold text-white">Temperature Statistics</h2>
-          <span class="text-slate-400 text-sm">Last 24 Hours</span>
+          <h2 class="text-xl font-semibold text-black dark:text-white">Temperature Statistics</h2>
+          <span class="text-slate-600 text-sm">Last 24 Hours</span>
         </div>
         
         <div class="grid grid-cols-3 gap-4">
@@ -79,7 +91,7 @@
               </svg>
             </div>
             <div id="avgTemp" class="text-2xl font-bold text-blue-400"></div>
-            <div class="text-slate-400 text-sm">Average</div>
+            <div class="text-slate-600 text-sm">Average</div>
           </div>
           
           <div class="text-center">
@@ -89,7 +101,7 @@
               </svg>
             </div>
             <div id="maxTemp" class="text-2xl font-bold text-red-400"></div>
-            <div class="text-slate-400 text-sm">Highest</div>
+            <div class="text-slate-600 text-sm">Highest</div>
           </div>
           
           <div class="text-center">
@@ -99,14 +111,14 @@
               </svg>
             </div>
             <div id="minTemp" class="text-2xl font-bold text-green-400"></div>
-            <div class="text-slate-400 text-sm">Lowest</div>
+            <div class="text-slate-600 text-sm">Lowest</div>
           </div>
         </div>
       </div>
     </div>
 
     <!-- Temperature History Chart -->
-    <div class="bg-slate-700/50 rounded-2xl p-6 border border-slate-600 mb-6">
+    <div class="dark:bg-slate-700/50 rounded-2xl p-6 border dark:border-slate-600 mb-6">
       <div class="flex justify-between items-center mb-6">
         <div class="flex items-center">
           <svg class="w-5 h-5 text-slate-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -115,13 +127,13 @@
           <h2 class="text-xl font-semibold text-white">Temperature History</h2>
         </div>
       </div>
-      <div class="flex bg-slate-600 rounded-lg p-1 mb-4">
-        <button id="dailyBtn" class="px-4 py-2 text-sm font-medium bg-slate-500 text-white rounded-md">Daily</button>
-        <button id="monthlyBtn" class="px-4 py-2 text-sm font-medium text-slate-300 hover:text-white">Monthly</button>
-        <button id="yearlyBtn" class="px-4 py-2 text-sm font-medium text-slate-300 hover:text-white">Yearly</button>
+      <div class="flex dark:bg-slate-600 rounded-lg p-1 mb-4">
+        <button id="dailyBtn" class="px-4 py-2 text-sm font-medium bg-slate-500 text-black dark:text-400 rounded-md">Daily</button>
+        <button id="monthlyBtn" class="px-4 py-2 text-sm font-medium text-black dark:text-slate-300 hover:text-400 rounded-md">Monthly</button>
+        <button id="yearlyBtn" class="px-4 py-2 text-sm font-medium text-black dark:text-slate-300 hover:text-400 rounded-md">Yearly</button>
       </div>
-      <div class="relative h-96 bg-slate-800 rounded-lg flex items-center justify-center">
-        <canvas id="tempChart"></canvas>
+      <div class="relative h-96 text-black dark:bg-slate-800 rounded-lg flex items-center justify-center w-full">
+        <canvas class="w-full" id="tempChart"></canvas>
       </div>
       
       <p class="text-slate-400 text-sm text-center mt-4">
