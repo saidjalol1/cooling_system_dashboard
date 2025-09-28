@@ -105,6 +105,8 @@ let lastPayload = "";
 document.addEventListener("DOMContentLoaded", () => {
   const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
   const ws = new WebSocket(`${protocol}://${window.location.host}/ws/motors`);
+  console.log(ws);
+  
   ws.onopen = () => console.log("WebSocket connected");
   
  let renderTimeout;

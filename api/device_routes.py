@@ -14,7 +14,7 @@ device = APIRouter(
     tags=["Devices"]
 )
 
-active_connections: list[WebSocket] = []
+
 
 @device.post("/device/create")
 async def create_user(device: schemas.DeviceBase, db: Session = Depends(database.get_db)):
@@ -72,50 +72,3 @@ async def create_user(db: Session = Depends(database.get_db)):
 
 
 
-@device.websocket("/ws/motors")
-async def websocket_motors(websocket: WebSocket):
-    await websocket.accept()
-    active_connections.append(websocket)
-    try:
-        while True:
-            await asyncio.sleep(2)
-            with Session(database.engine) as db:
-                motors = db.query(models.Device).all()
-
-                data = []
-                for d in motors:
-                    last_temp = d.temperature[-1] if d.temperature else None
-                    last_vibration = d.vibration[-1] if d.vibration else None
-                    last_humidity = d.humidity[-1] if d.humidity else None
-
-                    
-                    temp_value = last_temp.heat if last_temp else None
-                    vibration_value = last_vibration.vibration if last_vibration else None
-                    humidity_value = last_humidity.humidity if last_humidity else None
-
-                   
-                    temp_time = last_temp.date_created.strftime("%M:%S") + " ago" if last_temp else "N/A"
-                    vibration_time = last_vibration.date_created.strftime("%M:%S") + " ago" if last_vibration else "N/A"
-                    humidity_time = last_humidity.date_created.strftime("%M:%S") + " ago" if last_humidity else "N/A"
-
-                    data.append({
-                        "id": d.id,
-                        "name": d.device_name,
-                        "zone": d.device_zone,
-                        "temp_value": temp_value,
-                        "vibration_value": vibration_value,
-                        "humidity_value": humidity_value,
-                        "temp_time": temp_time,
-                        "vibration_time": vibration_time,
-                        "humidity_time": humidity_time,
-                    })
-                    print(data)
-            
-            for conn in list(active_connections):
-                try:
-                    await conn.send_text(json.dumps(data))
-                except Exception:
-                    
-                    active_connections.remove(conn)
-    except WebSocketDisconnect:
-        active_connections.remove(websocket)
