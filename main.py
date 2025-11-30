@@ -2,16 +2,18 @@ import time
 import logging
 import json
 import asyncio
-from datetime import timedelta
+from datetime import timedelta, datetime
 
 from fastapi import FastAPI, Request, Depends, status, HTTPException, WebSocket, WebSocketDisconnect
 
-from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.encoders import jsonable_encoder
+from starlette.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
+from sqlalchemy import desc
 
 from config.database import get_db, engine
 from auth import auth_main, token
@@ -20,18 +22,66 @@ from shemas import schemas
 
 from api import user_routes, device_routes
 
+
 app  = FastAPI()
 
+# Add GZIP compression middleware for faster response
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
 active_connections: list[WebSocket] = []
+last_data_sent: str = ""  # Track last sent data to avoid duplicate sends
+
+def calculate_time_diff(date_created):
+    """Calculate time difference in minutes and seconds"""
+    if not date_created:
+        return "N/A"
+    diff = datetime.now() - date_created
+    minutes = int(diff.total_seconds() // 60)
+    seconds = int(diff.total_seconds() % 60)
+    if minutes > 0:
+        return f"{minutes}m {seconds}s ago"
+    return f"{seconds}s ago"
 
 @app.websocket("/ws/motors")
 async def websocket_motors(websocket: WebSocket):
     await websocket.accept()
     active_connections.append(websocket)
+    # send initial payload to the newly connected client so it has current state
+    try:
+        with Session(engine) as db:
+            init_motors = db.query(Device).all()
+            init_data = []
+            for d in init_motors:
+                last_temp = d.temperature[-1] if d.temperature else None
+                last_vibration = d.vibration[-1] if d.vibration else None
+                last_humidity = d.humidity[-1] if d.humidity else None
+
+                init_data.append({
+                    "id": d.id,
+                    "name": d.device_name,
+                    "zone": d.device_zone,
+                    "temp_value": last_temp.heat if last_temp else None,
+                    "vibration_value": last_vibration.vibration if last_vibration else None,
+                    "humidity_value": last_humidity.humidity if last_humidity else None,
+                    "temp_time": calculate_time_diff(last_temp.date_created) if last_temp else "N/A",
+                    "vibration_time": calculate_time_diff(last_vibration.date_created) if last_vibration else "N/A",
+                    "humidity_time": calculate_time_diff(last_humidity.date_created) if last_humidity else "N/A",
+                })
+            try:
+                await websocket.send_text(json.dumps(init_data))
+            except Exception:
+                # if send fails, remove websocket from active list
+                if websocket in active_connections:
+                    active_connections.remove(websocket)
+    except Exception:
+        # ignore initial-send errors; connection still accepted
+        pass
     try:
         while True:
-            await asyncio.sleep(2)
+            # Reduce sleep from 2s to 0.5s for faster real-time updates
+            await asyncio.sleep(0.5)
             with Session(engine) as db:
+                # Use optimized query with only latest records
                 motors = db.query(Device).all()
 
                 data = []
@@ -40,15 +90,13 @@ async def websocket_motors(websocket: WebSocket):
                     last_vibration = d.vibration[-1] if d.vibration else None
                     last_humidity = d.humidity[-1] if d.humidity else None
 
-                    
                     temp_value = last_temp.heat if last_temp else None
                     vibration_value = last_vibration.vibration if last_vibration else None
                     humidity_value = last_humidity.humidity if last_humidity else None
 
-                   
-                    temp_time = last_temp.date_created.strftime("%M:%S") + " ago" if last_temp else "N/A"
-                    vibration_time = last_vibration.date_created.strftime("%M:%S") + " ago" if last_vibration else "N/A"
-                    humidity_time = last_humidity.date_created.strftime("%M:%S") + " ago" if last_humidity else "N/A"
+                    temp_time = calculate_time_diff(last_temp.date_created) if last_temp else "N/A"
+                    vibration_time = calculate_time_diff(last_vibration.date_created) if last_vibration else "N/A"
+                    humidity_time = calculate_time_diff(last_humidity.date_created) if last_humidity else "N/A"
 
                     data.append({
                         "id": d.id,
@@ -61,16 +109,23 @@ async def websocket_motors(websocket: WebSocket):
                         "vibration_time": vibration_time,
                         "humidity_time": humidity_time,
                     })
-                    print(data)
             
-            for conn in list(active_connections):
-                try:
-                    await conn.send_text(json.dumps(data))
-                except Exception:
-                    
-                    active_connections.remove(conn)
+            # Only send if data has changed (reduces unnecessary network traffic)
+            data_json = json.dumps(data)
+            global last_data_sent
+            if data_json != last_data_sent:
+                last_data_sent = data_json
+                for conn in list(active_connections):
+                    try:
+                        await conn.send_text(data_json)
+                    except Exception:
+                        if conn in active_connections:
+                            active_connections.remove(conn)
     except WebSocketDisconnect:
         active_connections.remove(websocket)
+    except Exception as e:
+        if websocket in active_connections:
+            active_connections.remove(websocket)
 
 # routes
 app.include_router(user_routes.users)

@@ -4,8 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Motor Dashboard</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/litepicker@latest/dist/litepicker.css">
   <script>
     tailwind.config = {
       darkMode: "class"
@@ -42,6 +43,34 @@
       </div>
     </div>
 
+    <!-- Date Filter Section -->
+    <div class="dark:bg-slate-700/50 bg-gray-200 rounded-2xl p-6 border dark:border-slate-600 mb-6">
+      <div class="flex items-center justify-between flex-wrap gap-4">
+        <div>
+          <h3 class="text-lg font-semibold text-black dark:text-white mb-2">Filter by Date Range</h3>
+          <p class="text-slate-600 text-sm">Select dates to view historical data</p>
+        </div>
+        <div class="flex gap-4 flex-wrap">
+          <div>
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Start Date</label>
+            <input type="date" id="startDate" class="px-3 py-2 rounded-lg border dark:bg-slate-600 dark:border-slate-500 dark:text-white bg-white border-gray-300">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">End Date</label>
+            <input type="date" id="endDate" class="px-3 py-2 rounded-lg border dark:bg-slate-600 dark:border-slate-500 dark:text-white bg-white border-gray-300">
+          </div>
+          <div class="flex items-end gap-2">
+            <button id="applyFilter" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors">
+              Apply Filter
+            </button>
+            <button id="resetFilter" class="px-4 py-2 bg-slate-600 hover:bg-slate-700 text-white rounded-lg font-medium transition-colors">
+              Reset
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Top Row -->
     <div class="grid lg:grid-cols-2 gap-6 mb-6 ">
       <!-- Current Status -->
@@ -66,7 +95,7 @@
             </svg>
             <div class="absolute inset-0 flex flex-col items-center justify-center">
               <span id="currentHeat" class="text-4xl font-bold text-black dark:text-white">{{ context.temperature[-1].heat}}</span>
-              <span class="text-red-400 text-sm font-medium">Overheated</span>
+              <span id="statusText" class="text-sm font-medium text-red-400"></span>
             </div>
           </div>
         </div>
@@ -142,54 +171,114 @@
     </div>
   </div>
 
+<script src="https://cdn.jsdelivr.net/npm/litepicker@latest/dist/litepicker.js"></script>
 <script>
   const device = {{ context|tojson }};
+  const deviceId = {{ context.id }};
   let chart;
+  let currentData = device;
+  
+  // Debounce helper for performance
+  function debounce(func, delay) {
+    let timeoutId;
+    return function(...args) {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => func(...args), delay);
+    };
+  }
+
+  // status mapping (same thresholds as dashboard)
+  function getStatus(temp) {
+    if (temp == null) return { label: 'N/A', badgeBg: 'bg-gray-400', badgeText: 'text-white', statusTextClass: 'text-gray-400', arc: '#9CA3AF' };
+    if (temp < 60) return { label: 'SAFE', badgeBg: 'bg-green-600', badgeText: 'text-white', statusTextClass: 'text-green-400', arc: '#10B981' };
+    if (temp < 80) return { label: 'WARNING', badgeBg: 'bg-orange-600', badgeText: 'text-white', statusTextClass: 'text-orange-400', arc: '#F59E0B' };
+    return { label: 'DANGER', badgeBg: 'bg-red-600', badgeText: 'text-white', statusTextClass: 'text-red-400', arc: '#EF4444' };
+  }
 
   // --- calculate statistics ---
-  const heats = device.temperature.map(t => t.heat);
-  const avg = heats.reduce((a,b)=>a+b,0)/heats.length || 0;
-  const max = Math.max(...heats);
-  const min = Math.min(...heats);
-
-  document.getElementById('avgTemp').textContent = avg.toFixed(1) + '°C';
-  document.getElementById('maxTemp').textContent = max.toFixed(1) + '°C';
-  document.getElementById('minTemp').textContent = min.toFixed(1) + '°C';
-  
-  // also fill top section
-  document.getElementById('motorName').textContent = device.device_name;
-  document.getElementById('motorZone').textContent = device.device_zone;
-  document.getElementById('motorId').textContent = device.id;
-
-  if (device.temperature.length > 0) {
-  const lastReading = device.temperature[device.temperature.length - 1];
-  document.getElementById("lastUpdated").textContent =
-    new Date(lastReading.date_created).toLocaleTimeString();
+  function updateStatistics(data) {
+    const heats = data.temperature.map(t => t.heat);
+    if (heats.length === 0) {
+      document.getElementById('avgTemp').textContent = 'N/A';
+      document.getElementById('maxTemp').textContent = 'N/A';
+      document.getElementById('minTemp').textContent = 'N/A';
+      return;
     }
-  // draw chart
+    const avg = heats.reduce((a,b)=>a+b,0)/heats.length || 0;
+    const max = Math.max(...heats);
+    const min = Math.min(...heats);
+
+    document.getElementById('avgTemp').textContent = avg.toFixed(1) + '°C';
+    document.getElementById('maxTemp').textContent = max.toFixed(1) + '°C';
+    document.getElementById('minTemp').textContent = min.toFixed(1) + '°C';
+  }
+
+  function updateUI(data) {
+    currentData = data;
+    
+    // also fill top section
+    document.getElementById('motorName').textContent = data.device_name;
+    document.getElementById('motorZone').textContent = data.device_zone;
+    // support both server-rendered object (id) and API returned object (device_id)
+    document.getElementById('motorId').textContent = data.id ?? data.device_id ?? '';
+
+    if (data.temperature.length > 0) {
+      const lastReading = data.temperature[data.temperature.length - 1];
+      document.getElementById("lastUpdated").textContent =
+        new Date(lastReading.date_created).toLocaleTimeString();
+      // update current heat and status
+      const temp = lastReading.heat;
+      document.getElementById('currentHeat').textContent = temp != null ? `${temp}°C` : 'N/A';
+      const status = getStatus(temp);
+      const badge = document.getElementById('statusBadge');
+      // reset badge classes and apply new
+      badge.className = `${status.badgeBg} ${status.badgeText} px-3 py-1 rounded-full text-sm font-medium`;
+      badge.textContent = status.label;
+      const statusText = document.getElementById('statusText');
+      statusText.textContent = status.label === 'N/A' ? 'N/A' : status.label;
+      statusText.className = `text-sm font-medium ${status.statusTextClass}`;
+      // update circular indicator
+      const circle = document.getElementById('heatCircle');
+      const dasharray = parseFloat(circle.getAttribute('stroke-dasharray')) || 251.2;
+      const percent = Math.min((temp ?? 0) / 120, 1);
+      const offset = dasharray - dasharray * percent;
+      circle.setAttribute('stroke-dashoffset', offset);
+      circle.style.stroke = status.arc;
+    }
+    
+    updateStatistics(data);
+  }
+
+  // draw chart with RequestAnimationFrame for smooth rendering
   function makeChart(labels, data) {
     if (chart) chart.destroy();
-    chart = new Chart(document.getElementById('tempChart'), {
-      type: 'line',
-      data: {
-        labels: labels,
-        datasets: [{
-          label: 'Temperature (°C)',
-          data: data,
-          borderColor: '#ef4444',
-          backgroundColor: 'rgba(239,68,68,0.2)',
-          tension: 0.3,
-          fill: true
-        }]
-      },
-      options: {
-        responsive: true,
-        plugins: { legend: { display: false } },
-        scales: {
-          x: { ticks: { color: '#9ca3af' }, grid: { color: '#374151' } },
-          y: { ticks: { color: '#9ca3af' }, grid: { color: '#374151' } }
+    requestAnimationFrame(() => {
+      chart = new Chart(document.getElementById('tempChart'), {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Temperature (°C)',
+            data: data,
+            borderColor: '#ef4444',
+            backgroundColor: 'rgba(239,68,68,0.2)',
+            tension: 0.3,
+            fill: true,
+            pointRadius: 2,
+            pointHoverRadius: 4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: { duration: 0 },
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { ticks: { color: '#9ca3af' }, grid: { color: '#374151' } },
+            y: { ticks: { color: '#9ca3af' }, grid: { color: '#374151' } }
+          }
         }
-      }
+      });
     });
   }
 
@@ -203,22 +292,26 @@
     activeBtn.classList.add('bg-slate-500', 'text-white');
   }
 
+  // initial UI setup
+  updateUI(device);
+  
   // initial daily chart
   const dailyLabels = device.temperature.map(t => new Date(t.date_created).toLocaleTimeString());
+  const heats = device.temperature.map(t => t.heat);
   makeChart(dailyLabels, heats);
 
-  // button handlers…
+  // button handlers
   document.getElementById('dailyBtn').addEventListener('click', () => {
     setActive('dailyBtn');
-    const heats = device.temperature.map(t => t.heat);
-    const labels = device.temperature.map(t => new Date(t.date_created).toLocaleTimeString());
+    const heats = currentData.temperature.map(t => t.heat);
+    const labels = currentData.temperature.map(t => new Date(t.date_created).toLocaleTimeString());
     makeChart(labels, heats);
   });
 
   document.getElementById('monthlyBtn').addEventListener('click', () => {
     setActive('monthlyBtn');
     const grouped = {};
-    device.temperature.forEach(t => {
+    currentData.temperature.forEach(t => {
       const m = new Date(t.date_created).toLocaleString('default', { month: 'short', year: 'numeric' });
       if (!grouped[m]) grouped[m] = [];
       grouped[m].push(t.heat);
@@ -231,7 +324,7 @@
   document.getElementById('yearlyBtn').addEventListener('click', () => {
     setActive('yearlyBtn');
     const grouped = {};
-    device.temperature.forEach(t => {
+    currentData.temperature.forEach(t => {
       const y = new Date(t.date_created).getFullYear();
       if (!grouped[y]) grouped[y] = [];
       grouped[y].push(t.heat);
@@ -239,6 +332,54 @@
     const labels = Object.keys(grouped);
     const data = labels.map(l => grouped[l].reduce((a,b)=>a+b)/grouped[l].length);
     makeChart(labels, data);
+  });
+
+  // Date filter functionality
+  async function applyDateFilter() {
+    const startDate = document.getElementById('startDate').value;
+    const endDate = document.getElementById('endDate').value;
+    
+    try {
+      const params = new URLSearchParams();
+      if (startDate) params.append('start_date', startDate);
+      if (endDate) params.append('end_date', endDate);
+      
+      const response = await fetch(`/device/${deviceId}/data?${params.toString()}`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        updateUI(data);
+        const heats = data.temperature.map(t => t.heat);
+        const labels = data.temperature.map(t => new Date(t.date_created).toLocaleTimeString());
+        makeChart(labels, heats);
+        console.log('Filtered data:', data);
+      } else {
+        console.error('Error fetching filtered data:', response.status);
+      }
+    } catch (error) {
+      console.error('Error applying filter:', error);
+    }
+  }
+
+  function resetDateFilter() {
+    document.getElementById('startDate').value = '';
+    document.getElementById('endDate').value = '';
+    updateUI(device);
+    const dailyLabels = device.temperature.map(t => new Date(t.date_created).toLocaleTimeString());
+    const heats = device.temperature.map(t => t.heat);
+    makeChart(dailyLabels, heats);
+  }
+
+  // Add event listeners with debouncing
+  document.getElementById('applyFilter').addEventListener('click', debounce(applyDateFilter, 300));
+  document.getElementById('resetFilter').addEventListener('click', resetDateFilter);
+
+  // Allow Enter key to apply filter
+  document.getElementById('endDate').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') applyDateFilter();
   });
 </script>
 

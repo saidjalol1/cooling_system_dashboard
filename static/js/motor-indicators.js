@@ -1,11 +1,12 @@
 let motors = [];
 const motorsPerPage = 10;
 let currentPage = 1;
+let updateTimeout;
 
 function getStatus(temp) {
   if (temp == null) return { label: "N/A", color: "bg-gray-100", text_color: "text-gray-600", arc: "#9CA3AF" };
-  if (temp < 60) return { label: "SAFE", color: "bg-green-100", text_color:"text-green-600", arc: "#10B981" };
-  if (temp < 90) return { label: "WARNING", color: "bg-orange-100", text_color:"text-orange-600", arc: "#F59E0B" };
+  if (temp < 36) return { label: "SAFE", color: "bg-green-100", text_color:"text-green-600", arc: "#10B981" };
+  if (temp < 41) return { label: "WARNING", color: "bg-orange-100", text_color:"text-orange-600", arc: "#F59E0B" };
   return { label: "DANGER", color: "bg-red-100", text_color:"text-red-600", arc: "#EF4444" };
 }
 
@@ -43,7 +44,7 @@ function renderMotors() {
     // change div → a
     return `
       <a href="/detail/${m.id}/page"
-         class="motor-card dark:bg-gray-800 bg-gray-200 rounded-xl shadow-md p-5 w-80 block">
+         class="motor-card dark:bg-gray-800 bg-gray-200 rounded-xl shadow-md p-5 w-80 block hover:shadow-lg transition-shadow duration-200">
         <div class="flex justify-between items-start">
           <div>
             <h2 class="text-lg font-bold text-black dark:text-white">${m.name}</h2>
@@ -85,7 +86,7 @@ function renderPagination() {
   for (let i = 1; i <= totalPages; i++) {
     buttons += `
       <button onclick="goToPage(${i})"
-        class="px-3 py-1 rounded ${i === currentPage ? 'bg-blue-600 text-white' : 'bg-gray-300 dark:bg-gray-700 text-black dark:text-white'}">
+        class="px-3 py-1 rounded ${i === currentPage ? 'bg-blue-600 text-white' : 'bg-gray-300 dark:bg-gray-700 text-black dark:text-white'} transition-colors duration-150">
         ${i}
       </button>
     `;
@@ -99,28 +100,43 @@ function goToPage(page) {
   renderPagination();
 }
 
+// Optimized render with RequestAnimationFrame for smooth updates
+function scheduleRender() {
+  clearTimeout(updateTimeout);
+  updateTimeout = setTimeout(() => {
+    requestAnimationFrame(() => {
+      renderCounts();
+      renderMotors();
+      renderPagination();
+    });
+  }, 100); // Debounce rapid updates
+}
 
 let lastPayload = "";
 
 document.addEventListener("DOMContentLoaded", () => {
   const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
   const ws = new WebSocket(`${protocol}://${window.location.host}/ws/motors`);
-  console.log(ws);
+  console.log("WebSocket connecting...");
   
-  ws.onopen = () => console.log("WebSocket connected");
-  
- let renderTimeout;
+  ws.onopen = () => {
+    console.log("WebSocket connected - ready for real-time updates");
+  };
 
   ws.onmessage = (event) => {
-  const newMotors = JSON.parse(event.data);
-  motors = newMotors;
-  clearTimeout(renderTimeout);
-  renderTimeout = setTimeout(() => {
-    renderCounts();
-    renderMotors();
-    renderPagination();
-  }, 500); 
-};
+    const newMotors = JSON.parse(event.data);
+    motors = newMotors;
+    scheduleRender();
+  };
 
-  ws.onclose = () => console.log("WebSocket closed");
+  ws.onerror = (error) => {
+    console.error("WebSocket error:", error);
+  };
+
+  ws.onclose = () => {
+    console.log("WebSocket closed - attempting to reconnect in 3 seconds");
+    setTimeout(() => {
+      location.reload(); // Reload to reconnect
+    }, 3000);
+  };
 });
